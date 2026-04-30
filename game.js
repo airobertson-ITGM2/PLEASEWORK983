@@ -1,4 +1,4 @@
-// Tree Jump - Auto Running Platformer Game
+// Geometry Dash Style - Tree Jump Game
 
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
@@ -18,9 +18,9 @@ const GameState = {
     GAME_OVER: 'gameOver'
 };
 
-// Characters
+// Characters (Geometry Dash style)
 const CHARACTERS = ['🌳', '🦌', '🐿️', '🦅', '🦝', '🐰', '🦊', '🐢', '🦗', '🦋'];
-const CHARACTER_COLORS = ['#2d5016', '#8b4513', '#ff6b35', '#ffd700', '#4a5568', '#f5deb3', '#ff6347', '#4682b4', '#6b4423', '#9370db'];
+const CHARACTER_COLORS = ['#00FF00', '#FF1493', '#FFD700', '#00BFFF', '#FF6347', '#32CD32', '#FF8C00', '#9370DB', '#20B2AA', '#FF69B4'];
 
 // Game Variables
 let gameState = GameState.MENU;
@@ -29,66 +29,69 @@ let currentLevel = 1;
 let score = 0;
 let coinsCollected = 0;
 
-// Player Object
+// Player Object - Geometry Dash Style
 const player = {
-    x: 100,
+    x: 80,
     y: 0,
-    width: 30,
-    height: 30,
+    width: 35,
+    height: 35,
     velocityY: 0,
-    velocityX: 8,
+    velocityX: 10,
     jumping: false,
     grounded: false,
-    color: CHARACTER_COLORS[0]
+    color: CHARACTER_COLORS[0],
+    rotation: 0,
+    isFlipped: false,
+    jumpCount: 0
 };
 
-// Physics
-const gravity = 0.6;
-const jumpPower = -15;
-const groundLevel = canvas.height - 100;
+// Geometry Dash Physics
+const gravity = 0.7;
+const jumpPower = -16;
+const maxVelocity = 20;
+const groundLevel = canvas.height - 80;
 
-// Obstacles and Collectibles
+// Game Objects
 let obstacles = [];
 let coins = [];
 let particles = [];
 let goalReached = false;
 let gameOverTriggered = false;
+let cameraX = 0;
 
-// Cloud class for background
-class Cloud {
-    constructor(x, y) {
-        this.x = x;
-        this.y = y;
-        this.width = 80 + Math.random() * 40;
-        this.height = 30 + Math.random() * 20;
-        this.speed = 0.5 + Math.random() * 0.5;
-    }
+// Background grid for Geometry Dash style
+function drawBackground() {
+    // Dark background
+    ctx.fillStyle = '#0a0e27';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-    update() {
-        this.x -= this.speed;
-        if (this.x + this.width < 0) {
-            this.x = canvas.width;
-        }
-    }
-
-    draw() {
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
+    // Grid pattern
+    ctx.strokeStyle = 'rgba(102, 126, 234, 0.1)';
+    ctx.lineWidth = 1;
+    const gridSize = 40;
+    
+    for (let x = -cameraX % gridSize; x < canvas.width; x += gridSize) {
         ctx.beginPath();
-        ctx.arc(this.x, this.y, this.height, 0, Math.PI * 2);
-        ctx.arc(this.x + this.width * 0.3, this.y - 10, this.height * 1.2, 0, Math.PI * 2);
-        ctx.arc(this.x + this.width * 0.6, this.y, this.height * 1.1, 0, Math.PI * 2);
-        ctx.fill();
+        ctx.moveTo(x, 0);
+        ctx.lineTo(x, canvas.height);
+        ctx.stroke();
     }
-}
+    
+    for (let y = 0; y < canvas.height; y += gridSize) {
+        ctx.beginPath();
+        ctx.moveTo(0, y);
+        ctx.lineTo(canvas.width, y);
+        ctx.stroke();
+    }
 
-let clouds = [];
-function initializeClouds() {
-    clouds = [];
-    for (let i = 0; i < 5; i++) {
-        clouds.push(new Cloud(Math.random() * canvas.width, 50 + Math.random() * 100));
-    }
+    // Venom glow gradient
+    const gradient = ctx.createLinearGradient(0, 0, canvas.width, canvas.height);
+    gradient.addColorStop(0, 'rgba(153, 0, 255, 0.1)');
+    gradient.addColorStop(0.5, 'rgba(102, 0, 204, 0.05)');
+    gradient.addColorStop(1, 'rgba(153, 0, 255, 0.1)');
+    ctx.fillStyle = gradient;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
 }
-initializeClouds();
 
 // Particle class
 class Particle {
@@ -99,13 +102,13 @@ class Particle {
         this.vy = vy;
         this.life = 1;
         this.color = color;
-        this.size = 5 + Math.random() * 5;
+        this.size = 6 + Math.random() * 8;
     }
 
     update() {
         this.x += this.vx;
         this.y += this.vy;
-        this.vy += 0.3;
+        this.vy += gravity;
         this.life -= 0.02;
     }
 
@@ -113,85 +116,114 @@ class Particle {
         ctx.fillStyle = this.color;
         ctx.globalAlpha = this.life;
         ctx.beginPath();
-        ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+        ctx.arc(this.x - cameraX, this.y, this.size, 0, Math.PI * 2);
         ctx.fill();
         ctx.globalAlpha = 1;
     }
 }
 
-function createParticles(x, y, color, count = 8) {
+function createParticles(x, y, color, count = 12) {
     for (let i = 0; i < count; i++) {
         const angle = (Math.PI * 2 * i) / count;
-        const speed = 3 + Math.random() * 3;
+        const speed = 4 + Math.random() * 4;
         particles.push(new Particle(
             x, y,
             Math.cos(angle) * speed,
-            Math.sin(angle) * speed - 5,
+            Math.sin(angle) * speed - 6,
             color
         ));
     }
 }
 
-// Obstacle class
+// Geometry Dash Style Obstacle
 class Obstacle {
     constructor(x, y, width, height, type) {
         this.x = x;
         this.y = y;
         this.width = width;
         this.height = height;
-        this.type = type; // 'ground', 'air', 'spike'
-        this.color = this.getRandomColor();
-        this.rotation = Math.random() * Math.PI * 2;
+        this.type = type; // 'block', 'spike', 'platform'
+        this.color = this.getColor();
+        this.rotation = 0;
     }
 
-    getRandomColor() {
-        const colors = ['#ff6b6b', '#ff8c42', '#ffa502', '#ff1744', '#d32f2f'];
-        return colors[Math.floor(Math.random() * colors.length)];
+    getColor() {
+        const colors = {
+            'block': '#FF1744',
+            'spike': '#00FF00',
+            'platform': '#FFD700'
+        };
+        return colors[this.type] || '#FF1744';
     }
 
     update() {
         this.x -= player.velocityX;
+        this.rotation += 0.02;
     }
 
     draw() {
-        if (this.type === 'ground') {
-            // Ground obstacle
-            const gradient = ctx.createLinearGradient(this.x, this.y, this.x, this.y + this.height);
-            gradient.addColorStop(0, this.color);
-            gradient.addColorStop(1, this.getDarkerColor(this.color));
-            ctx.fillStyle = gradient;
-            ctx.fillRect(this.x, this.y, this.width, this.height);
+        const screenX = this.x - cameraX;
+
+        if (this.type === 'spike') {
+            // Floating spike hazard
+            ctx.fillStyle = '#00FF00';
+            ctx.globalAlpha = 0.9;
             
-            // Spikes on top
-            ctx.fillStyle = '#ffcc00';
-            for (let i = 0; i < this.width; i += 15) {
-                ctx.beginPath();
-                ctx.moveTo(this.x + i, this.y);
-                ctx.lineTo(this.x + i + 7, this.y - 10);
-                ctx.lineTo(this.x + i + 15, this.y);
-                ctx.fill();
-            }
-        } else if (this.type === 'air') {
-            // Flying obstacle
-            ctx.fillStyle = this.color;
+            // Triangle spike
             ctx.beginPath();
-            ctx.arc(this.x + this.width / 2, this.y + this.height / 2, this.width / 2, 0, Math.PI * 2);
+            ctx.moveTo(screenX + this.width / 2, this.y - this.height);
+            ctx.lineTo(screenX, this.y);
+            ctx.lineTo(screenX + this.width, this.y);
+            ctx.closePath();
             ctx.fill();
-            
-            // Glow effect
-            ctx.strokeStyle = this.color;
-            ctx.globalAlpha = 0.5;
+
+            // Glow
+            ctx.strokeStyle = '#00FF00';
             ctx.lineWidth = 2;
+            ctx.globalAlpha = 0.5;
+            ctx.stroke();
+            ctx.globalAlpha = 1;
+
+        } else if (this.type === 'platform') {
+            // Platform block
+            ctx.fillStyle = '#FFD700';
+            ctx.fillRect(screenX, this.y, this.width, this.height);
+            
+            // Border
+            ctx.strokeStyle = '#FFA500';
+            ctx.lineWidth = 3;
+            ctx.strokeRect(screenX, this.y, this.width, this.height);
+
+            // Pattern
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.2)';
+            for (let i = 0; i < this.width; i += 10) {
+                ctx.fillRect(screenX + i, this.y + 5, 4, 4);
+            }
+
+        } else {
+            // Regular block obstacle
+            ctx.fillStyle = '#FF1744';
+            ctx.fillRect(screenX, this.y, this.width, this.height);
+            
+            // Border
+            ctx.strokeStyle = '#FF6B6B';
+            ctx.lineWidth = 2;
+            ctx.strokeRect(screenX, this.y, this.width, this.height);
+
+            // X pattern on block
+            ctx.strokeStyle = '#FFD700';
+            ctx.lineWidth = 1;
+            ctx.globalAlpha = 0.5;
             ctx.beginPath();
-            ctx.arc(this.x + this.width / 2, this.y + this.height / 2, this.width / 2 + 5, 0, Math.PI * 2);
+            ctx.moveTo(screenX, this.y);
+            ctx.lineTo(screenX + this.width, this.y + this.height);
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.moveTo(screenX + this.width, this.y);
+            ctx.lineTo(screenX, this.y + this.height);
             ctx.stroke();
             ctx.globalAlpha = 1;
         }
-    }
-
-    getDarkerColor(color) {
-        // Simple color darkening
-        return color.replace(/ff/g, 'cc');
     }
 
     isColliding(rect) {
@@ -202,43 +234,45 @@ class Obstacle {
     }
 }
 
-// Coin class
+// Coin - Geometry Dash style
 class Coin {
     constructor(x, y) {
         this.x = x;
         this.y = y;
-        this.width = 20;
-        this.height = 20;
+        this.width = 25;
+        this.height = 25;
         this.rotation = 0;
         this.collected = false;
     }
 
     update() {
         this.x -= player.velocityX;
-        this.rotation += 0.15;
+        this.rotation += 0.2;
     }
 
     draw() {
+        const screenX = this.x - cameraX;
+        
         ctx.save();
-        ctx.translate(this.x + this.width / 2, this.y + this.height / 2);
+        ctx.translate(screenX + this.width / 2, this.y + this.height / 2);
         ctx.rotate(this.rotation);
         
         // Coin glow
-        ctx.fillStyle = 'rgba(255, 215, 0, 0.3)';
+        ctx.fillStyle = 'rgba(255, 215, 0, 0.4)';
         ctx.beginPath();
-        ctx.arc(0, 0, 15, 0, Math.PI * 2);
+        ctx.arc(0, 0, 18, 0, Math.PI * 2);
         ctx.fill();
         
         // Coin body
         ctx.fillStyle = '#FFD700';
         ctx.beginPath();
-        ctx.arc(0, 0, 10, 0, Math.PI * 2);
+        ctx.arc(0, 0, 12, 0, Math.PI * 2);
         ctx.fill();
         
         // Coin shine
-        ctx.fillStyle = '#FFF';
+        ctx.fillStyle = '#FFFF00';
         ctx.beginPath();
-        ctx.arc(-3, -3, 3, 0, Math.PI * 2);
+        ctx.arc(-4, -4, 4, 0, Math.PI * 2);
         ctx.fill();
         
         ctx.restore();
@@ -251,52 +285,61 @@ class Coin {
             Math.pow(centerX - (rect.x + rect.width / 2), 2) +
             Math.pow(centerY - (rect.y + rect.height / 2), 2)
         );
-        return distance < 20;
+        return distance < 25;
     }
 }
 
-// Goal class
+// Goal - Geometry Dash style
 class Goal {
     constructor(x, y) {
         this.x = x;
         this.y = y;
-        this.width = 40;
-        this.height = 40;
+        this.width = 50;
+        this.height = 50;
         this.rotation = 0;
         this.scale = 1;
     }
 
     update() {
         this.x -= player.velocityX;
-        this.rotation += 0.05;
-        this.scale = 1 + Math.sin(this.rotation) * 0.1;
+        this.rotation += 0.08;
+        this.scale = 1 + Math.sin(this.rotation) * 0.15;
     }
 
     draw() {
+        const screenX = this.x - cameraX;
+        
         ctx.save();
-        ctx.translate(this.x + this.width / 2, this.y + this.height / 2);
+        ctx.translate(screenX + this.width / 2, this.y + this.height / 2);
         ctx.scale(this.scale, this.scale);
         
-        // Glow
-        ctx.fillStyle = 'rgba(76, 175, 80, 0.3)';
+        // Outer glow
+        ctx.fillStyle = 'rgba(0, 255, 0, 0.2)';
+        ctx.beginPath();
+        ctx.arc(0, 0, 35, 0, Math.PI * 2);
+        ctx.fill();
+        
+        // Flag circle
+        ctx.fillStyle = '#00FF00';
         ctx.beginPath();
         ctx.arc(0, 0, 25, 0, Math.PI * 2);
         ctx.fill();
         
-        // Flag circle
-        ctx.fillStyle = '#4CAF50';
+        // Inner circle
+        ctx.fillStyle = '#00AA00';
         ctx.beginPath();
         ctx.arc(0, 0, 20, 0, Math.PI * 2);
         ctx.fill();
         
         // Checkmark
-        ctx.strokeStyle = '#fff';
-        ctx.lineWidth = 3;
+        ctx.strokeStyle = '#FFFF00';
+        ctx.lineWidth = 4;
         ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
         ctx.beginPath();
-        ctx.moveTo(-8, 0);
-        ctx.lineTo(-2, 6);
-        ctx.lineTo(8, -6);
+        ctx.moveTo(-10, 0);
+        ctx.lineTo(-3, 8);
+        ctx.lineTo(10, -8);
         ctx.stroke();
         
         ctx.restore();
@@ -309,13 +352,13 @@ class Goal {
             Math.pow(centerX - (rect.x + rect.width / 2), 2) +
             Math.pow(centerY - (rect.y + rect.height / 2), 2)
         );
-        return distance < 30;
+        return distance < 35;
     }
 }
 
 let goal = null;
 
-// Initialize level
+// Initialize level - Geometry Dash style
 function initializeLevel() {
     obstacles = [];
     coins = [];
@@ -329,34 +372,43 @@ function initializeLevel() {
     player.jumping = false;
     player.grounded = true;
     player.color = CHARACTER_COLORS[selectedCharacter];
+    cameraX = 0;
     
-    // Generate level based on difficulty
-    const difficulty = Math.min(currentLevel / 30, 1);
-    const speed = 8 + difficulty * 3;
+    // Difficulty scaling
+    const difficulty = Math.min(currentLevel / 50, 1);
+    const speed = 10 + difficulty * 4;
     player.velocityX = speed;
     
-    // Generate obstacles and coins
-    let obstacleDistance = canvas.width + 100;
-    const baseGap = 150 - difficulty * 50;
+    // Generate Geometry Dash style levels
+    let distance = canvas.width + 200;
+    const baseGap = 200 - difficulty * 80;
     
-    for (let i = 0; i < 100; i++) {
-        obstacleDistance += baseGap + Math.random() * 100 - 50 * difficulty;
+    for (let i = 0; i < 150; i++) {
+        distance += baseGap + Math.random() * 120 - 60 * difficulty;
         
-        const type = Math.random() > 0.6 ? 'air' : 'ground';
-        const height = type === 'ground' ? 40 : 30;
-        const width = type === 'ground' ? 50 : 30;
-        const y = type === 'ground' ? groundLevel : groundLevel - 150 - Math.random() * 100;
+        // Variety of obstacles
+        const obstacleType = Math.random();
         
-        obstacles.push(new Obstacle(obstacleDistance, y, width, height, type));
+        if (obstacleType < 0.5) {
+            // Ground blocks
+            obstacles.push(new Obstacle(distance, groundLevel, 40, 40, 'block'));
+        } else if (obstacleType < 0.75) {
+            // Spike hazards
+            const spikeY = groundLevel - 60 - Math.random() * 100;
+            obstacles.push(new Obstacle(distance, spikeY, 30, 40, 'spike'));
+        } else {
+            // Platform blocks
+            obstacles.push(new Obstacle(distance, groundLevel - 60, 50, 20, 'platform'));
+        }
         
-        // Add coins randomly between obstacles
-        if (Math.random() > 0.5) {
-            coins.push(new Coin(obstacleDistance + width + 30, y - 40));
+        // Coins along the way
+        if (Math.random() > 0.6) {
+            coins.push(new Coin(distance + 20, groundLevel - 100));
         }
     }
     
-    // Add goal at the end
-    goal = new Goal(obstacleDistance + 200, groundLevel - 60);
+    // Add goal
+    goal = new Goal(distance + 150, groundLevel - 80);
     
     // Update HUD
     document.getElementById('levelDisplay').textContent = currentLevel;
@@ -372,7 +424,7 @@ function handleInput() {
         player.jumping = true;
         player.grounded = false;
         inputActive = true;
-        createParticles(player.x + player.width / 2, player.y + player.height, player.color, 6);
+        createParticles(player.x + player.width / 2, player.y + player.height, player.color, 8);
     }
 }
 
@@ -396,15 +448,21 @@ canvas.addEventListener('touchend', () => {
     inputActive = false;
 });
 
-// Update player
+// Update player with Geometry Dash physics
 function updatePlayer() {
     if (gameState !== GameState.PLAYING) return;
     
     // Apply gravity
     player.velocityY += gravity;
+    
+    // Cap velocity
+    if (player.velocityY > maxVelocity) {
+        player.velocityY = maxVelocity;
+    }
+    
     player.y += player.velocityY;
     
-    // Check ground collision
+    // Ground collision
     if (player.y + player.height >= groundLevel) {
         player.y = groundLevel - player.height;
         player.velocityY = 0;
@@ -414,12 +472,17 @@ function updatePlayer() {
         player.grounded = false;
     }
     
-    // Check if out of bounds (left side)
-    if (player.x < -50) {
+    // Camera follow
+    cameraX = player.x - 150;
+    if (cameraX < 0) cameraX = 0;
+    
+    // Out of bounds
+    if (player.y > canvas.height + 100) {
         triggerGameOver();
+        return;
     }
     
-    // Check obstacle collisions
+    // Obstacle collisions
     for (let obstacle of obstacles) {
         if (obstacle.isColliding(player)) {
             triggerGameOver();
@@ -427,21 +490,21 @@ function updatePlayer() {
         }
     }
     
-    // Check coin collisions
+    // Coin collisions
     for (let i = coins.length - 1; i >= 0; i--) {
         if (coins[i].isColliding(player) && !coins[i].collected) {
             coins[i].collected = true;
             score += 100;
             coinsCollected++;
-            createParticles(coins[i].x, coins[i].y, '#FFD700', 10);
+            createParticles(coins[i].x, coins[i].y, '#FFD700', 12);
             coins.splice(i, 1);
         }
     }
     
-    // Check goal collision
+    // Goal collision
     if (goal && goal.isColliding(player)) {
         goalReached = true;
-        createParticles(goal.x, goal.y, '#4CAF50', 15);
+        createParticles(goal.x, goal.y, '#00FF00', 20);
         setTimeout(() => {
             currentLevel++;
             initializeLevel();
@@ -449,24 +512,61 @@ function updatePlayer() {
     }
 }
 
-// Draw player
+// Draw player - Geometry Dash style
 function drawPlayer() {
-    ctx.save();
-    ctx.translate(player.x + player.width / 2, player.y + player.height / 2);
+    const screenX = player.x - cameraX;
     
-    // Shadow
-    ctx.fillStyle = 'rgba(0, 0, 0, 0.2)';
+    ctx.save();
+    ctx.translate(screenX + player.width / 2, player.y + player.height / 2);
+    
+    // Character shadow
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
     ctx.beginPath();
-    ctx.ellipse(0, player.height / 2 + 10, player.width, 5, 0, 0, Math.PI * 2);
+    ctx.ellipse(0, player.height / 2 + 10, player.width + 5, 6, 0, 0, Math.PI * 2);
     ctx.fill();
     
-    // Character (emoji-based)
-    ctx.font = '30px Arial';
+    // Character glow
+    ctx.fillStyle = player.color;
+    ctx.globalAlpha = 0.3;
+    ctx.beginPath();
+    ctx.arc(0, 0, player.width / 2 + 8, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.globalAlpha = 1;
+    
+    // Character emoji
+    ctx.font = 'bold 32px Arial';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.fillText(CHARACTERS[selectedCharacter], 0, 0);
     
     ctx.restore();
+}
+
+// Draw ground
+function drawGround() {
+    const groundGradient = ctx.createLinearGradient(0, groundLevel, 0, canvas.height);
+    groundGradient.addColorStop(0, '#1a1a2e');
+    groundGradient.addColorStop(1, '#0f0f1e');
+    ctx.fillStyle = groundGradient;
+    ctx.fillRect(0, groundLevel, canvas.width, canvas.height - groundLevel);
+    
+    // Ground line
+    ctx.strokeStyle = '#00FF00';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(0, groundLevel);
+    ctx.lineTo(canvas.width, groundLevel);
+    ctx.stroke();
+    
+    // Ground pattern
+    ctx.strokeStyle = 'rgba(0, 255, 0, 0.2)';
+    ctx.lineWidth = 1;
+    for (let i = -cameraX; i < canvas.width; i += 30) {
+        ctx.beginPath();
+        ctx.moveTo(i, groundLevel);
+        ctx.lineTo(i + 15, groundLevel + 15);
+        ctx.stroke();
+    }
 }
 
 // Trigger game over
@@ -481,43 +581,10 @@ function triggerGameOver() {
     document.getElementById('gameOverScreen').classList.add('show');
 }
 
-// Draw ground
-function drawGround() {
-    const gradient = ctx.createLinearGradient(0, groundLevel, 0, canvas.height);
-    gradient.addColorStop(0, '#2d5016');
-    gradient.addColorStop(1, '#1a3009');
-    ctx.fillStyle = gradient;
-    ctx.fillRect(0, groundLevel, canvas.width, canvas.height - groundLevel);
-    
-    // Grass pattern
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
-    ctx.lineWidth = 1;
-    for (let i = 0; i < canvas.width; i += 20) {
-        ctx.beginPath();
-        ctx.moveTo(i, groundLevel);
-        ctx.lineTo(i + 10, groundLevel - 5);
-        ctx.stroke();
-    }
-}
-
 // Game loop
 function gameLoop() {
-    // Clear canvas
-    ctx.fillStyle = 'rgba(135, 206, 235, 0.5)';
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-    
-    // Draw sky gradient
-    const skyGradient = ctx.createLinearGradient(0, 0, 0, groundLevel);
-    skyGradient.addColorStop(0, '#87CEEB');
-    skyGradient.addColorStop(1, '#E0F6FF');
-    ctx.fillStyle = skyGradient;
-    ctx.fillRect(0, 0, canvas.width, groundLevel);
-    
-    // Update and draw clouds
-    for (let cloud of clouds) {
-        cloud.update();
-        cloud.draw();
-    }
+    // Draw background
+    drawBackground();
     
     if (gameState === GameState.PLAYING) {
         // Update game objects
@@ -543,17 +610,15 @@ function gameLoop() {
             }
         }
         
-        // Draw obstacles
+        // Draw game objects
         for (let obstacle of obstacles) {
             obstacle.draw();
         }
         
-        // Draw coins
         for (let coin of coins) {
             coin.draw();
         }
         
-        // Draw goal
         if (goal) {
             goal.draw();
         }
@@ -592,7 +657,7 @@ function initializeMenu() {
     });
 }
 
-// Event listeners for UI
+// UI Event listeners
 document.getElementById('startBtn').addEventListener('click', () => {
     gameState = GameState.PLAYING;
     document.getElementById('menu').classList.add('hidden');
@@ -618,6 +683,6 @@ document.getElementById('menuBtn').addEventListener('click', () => {
     initializeMenu();
 });
 
-// Initialize and start game
+// Start the game
 initializeMenu();
 gameLoop();
