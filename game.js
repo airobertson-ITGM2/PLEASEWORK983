@@ -1,4 +1,5 @@
 // Geometry Dash Style - Tree Jump Game
+// NO ROLLING - MUST JUMP TO GET UP
 
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
@@ -29,26 +30,25 @@ let currentLevel = 1;
 let score = 0;
 let coinsCollected = 0;
 
-// Player Object - Geometry Dash Style
+// Player Object - Geometry Dash Style (CUBE)
 const player = {
     x: 80,
     y: 0,
-    width: 35,
-    height: 35,
+    width: 40,
+    height: 40,
     velocityY: 0,
     velocityX: 10,
     jumping: false,
     grounded: false,
     color: CHARACTER_COLORS[0],
     rotation: 0,
-    isFlipped: false,
-    jumpCount: 0
+    canDoubleJump: false
 };
 
-// Geometry Dash Physics
-const gravity = 0.7;
-const jumpPower = -16;
-const maxVelocity = 20;
+// Geometry Dash Physics - STRICTER
+const gravity = 0.8;
+const jumpPower = -17;
+const maxVelocity = 22;
 const groundLevel = canvas.height - 80;
 
 // Game Objects
@@ -135,7 +135,7 @@ function createParticles(x, y, color, count = 12) {
     }
 }
 
-// Geometry Dash Style Obstacle
+// Geometry Dash Style Obstacle - NO ROLLING ALLOWED
 class Obstacle {
     constructor(x, y, width, height, type) {
         this.x = x;
@@ -165,7 +165,7 @@ class Obstacle {
         const screenX = this.x - cameraX;
 
         if (this.type === 'spike') {
-            // Floating spike hazard
+            // Floating spike hazard - VERY DEADLY
             ctx.fillStyle = '#00FF00';
             ctx.globalAlpha = 0.9;
             
@@ -182,10 +182,18 @@ class Obstacle {
             ctx.lineWidth = 2;
             ctx.globalAlpha = 0.5;
             ctx.stroke();
+            
+            // Extra glow ring
+            ctx.strokeStyle = '#00FF00';
+            ctx.lineWidth = 1;
+            ctx.globalAlpha = 0.3;
+            ctx.beginPath();
+            ctx.arc(screenX + this.width / 2, this.y - this.height / 2, this.width / 2 + 10, 0, Math.PI * 2);
+            ctx.stroke();
             ctx.globalAlpha = 1;
 
         } else if (this.type === 'platform') {
-            // Platform block
+            // Platform block - MUST JUMP TO REACH
             ctx.fillStyle = '#FFD700';
             ctx.fillRect(screenX, this.y, this.width, this.height);
             
@@ -195,13 +203,13 @@ class Obstacle {
             ctx.strokeRect(screenX, this.y, this.width, this.height);
 
             // Pattern
-            ctx.fillStyle = 'rgba(255, 255, 255, 0.2)';
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
             for (let i = 0; i < this.width; i += 10) {
-                ctx.fillRect(screenX + i, this.y + 5, 4, 4);
+                ctx.fillRect(screenX + i, this.y + 5, 6, 6);
             }
 
         } else {
-            // Regular block obstacle
+            // Regular block obstacle - MUST JUMP OVER
             ctx.fillStyle = '#FF1744';
             ctx.fillRect(screenX, this.y, this.width, this.height);
             
@@ -210,10 +218,10 @@ class Obstacle {
             ctx.lineWidth = 2;
             ctx.strokeRect(screenX, this.y, this.width, this.height);
 
-            // X pattern on block
+            // X pattern on block - WARNING PATTERN
             ctx.strokeStyle = '#FFD700';
-            ctx.lineWidth = 1;
-            ctx.globalAlpha = 0.5;
+            ctx.lineWidth = 2;
+            ctx.globalAlpha = 0.6;
             ctx.beginPath();
             ctx.moveTo(screenX, this.y);
             ctx.lineTo(screenX + this.width, this.y + this.height);
@@ -358,7 +366,7 @@ class Goal {
 
 let goal = null;
 
-// Initialize level - Geometry Dash style
+// Initialize level - Geometry Dash style - NO ROLLING
 function initializeLevel() {
     obstacles = [];
     coins = [];
@@ -379,36 +387,36 @@ function initializeLevel() {
     const speed = 10 + difficulty * 4;
     player.velocityX = speed;
     
-    // Generate Geometry Dash style levels
+    // Generate Geometry Dash style levels - NO ROLLING
     let distance = canvas.width + 200;
     const baseGap = 200 - difficulty * 80;
     
     for (let i = 0; i < 150; i++) {
         distance += baseGap + Math.random() * 120 - 60 * difficulty;
         
-        // Variety of obstacles
+        // Variety of obstacles - ALL REQUIRE JUMPING
         const obstacleType = Math.random();
         
-        if (obstacleType < 0.5) {
-            // Ground blocks
-            obstacles.push(new Obstacle(distance, groundLevel, 40, 40, 'block'));
+        if (obstacleType < 0.45) {
+            // Ground blocks - TALL enough to block rolling
+            obstacles.push(new Obstacle(distance, groundLevel - 45, 50, 50, 'block'));
         } else if (obstacleType < 0.75) {
-            // Spike hazards
-            const spikeY = groundLevel - 60 - Math.random() * 100;
-            obstacles.push(new Obstacle(distance, spikeY, 30, 40, 'spike'));
+            // Spike hazards - FLOATING in air
+            const spikeY = groundLevel - 80 - Math.random() * 120;
+            obstacles.push(new Obstacle(distance, spikeY, 35, 45, 'spike'));
         } else {
-            // Platform blocks
-            obstacles.push(new Obstacle(distance, groundLevel - 60, 50, 20, 'platform'));
+            // Platform blocks - ABOVE ground, must jump to reach
+            obstacles.push(new Obstacle(distance, groundLevel - 100, 60, 25, 'platform'));
         }
         
-        // Coins along the way
+        // Coins along the way - FLOATING in air
         if (Math.random() > 0.6) {
-            coins.push(new Coin(distance + 20, groundLevel - 100));
+            coins.push(new Coin(distance + 20, groundLevel - 120));
         }
     }
     
-    // Add goal
-    goal = new Goal(distance + 150, groundLevel - 80);
+    // Add goal - HIGH UP, must jump to reach
+    goal = new Goal(distance + 150, groundLevel - 120);
     
     // Update HUD
     document.getElementById('levelDisplay').textContent = currentLevel;
@@ -416,7 +424,7 @@ function initializeLevel() {
     document.getElementById('charDisplay').textContent = CHARACTERS[selectedCharacter];
 }
 
-// Input handling
+// Input handling - JUMP ONLY
 let inputActive = false;
 function handleInput() {
     if (gameState === GameState.PLAYING && player.grounded && !inputActive) {
@@ -424,7 +432,7 @@ function handleInput() {
         player.jumping = true;
         player.grounded = false;
         inputActive = true;
-        createParticles(player.x + player.width / 2, player.y + player.height, player.color, 8);
+        createParticles(player.x + player.width / 2, player.y + player.height, '#00FF00', 8);
     }
 }
 
@@ -448,21 +456,21 @@ canvas.addEventListener('touchend', () => {
     inputActive = false;
 });
 
-// Update player with Geometry Dash physics
+// Update player with STRICT Geometry Dash physics - NO ROLLING
 function updatePlayer() {
     if (gameState !== GameState.PLAYING) return;
     
-    // Apply gravity
+    // Apply gravity - STRONGER
     player.velocityY += gravity;
     
-    // Cap velocity
+    // Cap velocity - HIGHER
     if (player.velocityY > maxVelocity) {
         player.velocityY = maxVelocity;
     }
     
     player.y += player.velocityY;
     
-    // Ground collision
+    // Ground collision - STRICT
     if (player.y + player.height >= groundLevel) {
         player.y = groundLevel - player.height;
         player.velocityY = 0;
@@ -476,13 +484,13 @@ function updatePlayer() {
     cameraX = player.x - 150;
     if (cameraX < 0) cameraX = 0;
     
-    // Out of bounds
+    // Out of bounds - INSTANT DEATH
     if (player.y > canvas.height + 100) {
         triggerGameOver();
         return;
     }
     
-    // Obstacle collisions
+    // Obstacle collisions - INSTANT DEATH
     for (let obstacle of obstacles) {
         if (obstacle.isColliding(player)) {
             triggerGameOver();
@@ -512,32 +520,31 @@ function updatePlayer() {
     }
 }
 
-// Draw player - Geometry Dash style
+// Draw player - Geometry Dash CUBE style
 function drawPlayer() {
     const screenX = player.x - cameraX;
     
     ctx.save();
-    ctx.translate(screenX + player.width / 2, player.y + player.height / 2);
     
     // Character shadow
     ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
     ctx.beginPath();
-    ctx.ellipse(0, player.height / 2 + 10, player.width + 5, 6, 0, 0, Math.PI * 2);
+    ctx.ellipse(screenX + player.width / 2, groundLevel - 5, player.width / 2 + 8, 6, 0, 0, Math.PI * 2);
     ctx.fill();
     
     // Character glow
     ctx.fillStyle = player.color;
     ctx.globalAlpha = 0.3;
     ctx.beginPath();
-    ctx.arc(0, 0, player.width / 2 + 8, 0, Math.PI * 2);
+    ctx.arc(screenX + player.width / 2, player.y + player.height / 2, player.width / 2 + 10, 0, Math.PI * 2);
     ctx.fill();
     ctx.globalAlpha = 1;
     
     // Character emoji
-    ctx.font = 'bold 32px Arial';
+    ctx.font = 'bold 36px Arial';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText(CHARACTERS[selectedCharacter], 0, 0);
+    ctx.fillText(CHARACTERS[selectedCharacter], screenX + player.width / 2, player.y + player.height / 2);
     
     ctx.restore();
 }
@@ -550,21 +557,21 @@ function drawGround() {
     ctx.fillStyle = groundGradient;
     ctx.fillRect(0, groundLevel, canvas.width, canvas.height - groundLevel);
     
-    // Ground line
+    // Ground line - PROMINENT
     ctx.strokeStyle = '#00FF00';
-    ctx.lineWidth = 3;
+    ctx.lineWidth = 4;
     ctx.beginPath();
     ctx.moveTo(0, groundLevel);
     ctx.lineTo(canvas.width, groundLevel);
     ctx.stroke();
     
-    // Ground pattern
-    ctx.strokeStyle = 'rgba(0, 255, 0, 0.2)';
-    ctx.lineWidth = 1;
-    for (let i = -cameraX; i < canvas.width; i += 30) {
+    // Ground pattern - TALL BLOCKS
+    ctx.strokeStyle = 'rgba(0, 255, 0, 0.3)';
+    ctx.lineWidth = 2;
+    for (let i = -cameraX; i < canvas.width; i += 40) {
         ctx.beginPath();
         ctx.moveTo(i, groundLevel);
-        ctx.lineTo(i + 15, groundLevel + 15);
+        ctx.lineTo(i + 15, groundLevel + 20);
         ctx.stroke();
     }
 }
